@@ -1,0 +1,305 @@
+Program.Sub.ScreenSU.Start
+Gui.Form_Auto_GP_VIEW..Create
+Gui.Form_Auto_GP_VIEW..Caption("Auto Good Pieces Errors View")
+Gui.Form_Auto_GP_VIEW..Size(11565,10380)
+Gui.Form_Auto_GP_VIEW..MinX(0)
+Gui.Form_Auto_GP_VIEW..MinY(0)
+Gui.Form_Auto_GP_VIEW..Position(0,0)
+Gui.Form_Auto_GP_VIEW..BackColor(-2147483633)
+Gui.Form_Auto_GP_VIEW..MousePointer(0)
+Gui.Form_Auto_GP_VIEW..Event(UnLoad,Form_Auto_GP_VIEW_UnLoad)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.Create(GsGridControl)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.Size(11175,9225)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.Position(105,45)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.Event(RowCellClick,GsGridControl_Errors_View_RowCellClick)
+Gui.Form_Auto_GP_VIEW.cmdReProcess.Create(Button)
+Gui.Form_Auto_GP_VIEW.cmdReProcess.Size(1755,375)
+Gui.Form_Auto_GP_VIEW.cmdReProcess.Position(105,9555)
+Gui.Form_Auto_GP_VIEW.cmdReProcess.Caption("Reprocess Selected")
+Gui.Form_Auto_GP_VIEW.cmdReProcess.Event(Click,cmdReProcess_Click)
+Gui.Form_Auto_GP_VIEW.cmdDelete.Create(Button)
+Gui.Form_Auto_GP_VIEW.cmdDelete.Size(1755,375)
+Gui.Form_Auto_GP_VIEW.cmdDelete.Position(1935,9555)
+Gui.Form_Auto_GP_VIEW.cmdDelete.Caption("Delete Selected")
+Gui.Form_Auto_GP_VIEW.cmdDelete.Event(Click,cmdDelete_Click)
+Gui.Form_Auto_GP_VIEW.lblFileErrors.Create(Label,"File Errors",True,3885,255,0,3750,9660,True,0,"Arial",8,-2147483633,0)
+Gui.Form_Auto_GP_VIEW.lblFileErrors.ForeColor(255)
+Gui.Form_Auto_GP_VIEW.dtpEndDate.Create(DatePicker)
+Gui.Form_Auto_GP_VIEW.dtpEndDate.Size(1935,285)
+Gui.Form_Auto_GP_VIEW.dtpEndDate.Position(7725,9600)
+Gui.Form_Auto_GP_VIEW.lblEndDate.Create(Label,"Date Selection for Processed File Cleanup",True,3690,255,0,7725,9345,True,0,"Arial",8,-2147483633,0)
+Gui.Form_Auto_GP_VIEW.cmdClenupFiles.Create(Button)
+Gui.Form_Auto_GP_VIEW.cmdClenupFiles.Size(1530,375)
+Gui.Form_Auto_GP_VIEW.cmdClenupFiles.Position(9795,9570)
+Gui.Form_Auto_GP_VIEW.cmdClenupFiles.Caption("Remove Files")
+Gui.Form_Auto_GP_VIEW.cmdClenupFiles.Event(Click,cmdClenupFiles_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.sDir.Declare(String)
+Variable.Global.sProcessedDir.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.bRet.Declare(String)
+V.Local.dDate.Declare(Date)
+V.Local.sErrorDir.Declare(String)
+V.Local.sErrorFiles.Declare(String)
+V.Local.sLabel.Declare(String)
+
+F.ODBC.Connection!Con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+'dir where files will be
+F.Intrinsic.String.Build("{0}\DATALOGIC\",V.Caller.GlobalDir,V.Global.sDir)
+F.Intrinsic.File.DirExists(V.Global.sDir,V.Local.bRet)
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.CreateDir(V.Global.sDir)
+F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.String.Build("{0}\DATALOGIC\Processed\",V.Caller.GlobalDir,V.Global.sProcessedDir)
+F.Intrinsic.File.DirExists(V.Global.sProcessedDir,V.Local.bRet)
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.CreateDir(V.Global.sProcessedDir)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Build("{0}\DATALOGIC\Error\",V.Caller.GlobalDir,V.Local.sErrorDir)
+F.Intrinsic.File.DirExists(V.Local.sErrorDir,V.Local.bRet)
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.CreateDir(V.Local.sErrorDir)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.File.GetFileList(V.Local.sErrorDir,V.Local.sErrorFiles)
+F.Intrinsic.Control.If(V.Local.sErrorFiles.Length,>,0)
+	F.Intrinsic.String.Build("There are error file(s) in {0}{1}that need to be looked at.",V.Local.sErrorDir,V.Ambient.NewLine,V.Local.sLabel)
+F.Intrinsic.Control.EndIf
+Gui.Form_Auto_GP_VIEW.lblFileErrors.Caption(V.Local.sLabel)
+				
+F.Intrinsic.Date.DateAdd("M",-1,V.Screen.Form_Auto_GP_VIEW!dtpEndDate.Value,V.Local.dDate)
+Gui.Form_Auto_GP_VIEW.dtpEndDate.Value(V.Local.dDate)
+
+F.Intrinsic.Control.CallSub(Get_Data)
+F.Intrinsic.Control.CallSub(Set_Properties)
+
+Gui.Form_Auto_GP_VIEW..Show
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Form_Auto_GP_VIEW_UnLoad.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!Con.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.Form_Auto_GP_VIEW_UnLoad.End
+
+Program.Sub.cmdReProcess_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.sText.Declare(String)
+V.Local.i.Declare(Long)
+V.Local.iIndex.Declare(Long)
+V.Local.sFile.Declare(String)
+V.Local.sDate.Declare(String)
+V.Local.sTime.Declare(String)
+
+F.Intrinsic.Control.If(V.DataView.ErrorView!Process.Exists,=,True)
+	F.Data.DataView.Close("ErrorView","Process")
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Create("ErrorView","Process",22,"Selection = True","Rec_NO")
+
+F.Intrinsic.Control.If(V.DataView.ErrorView!Process.RowCount--,<>,-1)
+	'creating file name a file for each record in the dataview
+	F.Intrinsic.Control.For(V.Local.i,0,V.DataView.ErrorView!Process.RowCount--,1)
+		'creating file name a file for each record in the dataview
+		F.Intrinsic.String.Build("$%{0}{1}{2}",V.DataView.ErrorView!Process(V.Local.i).Job!FieldValTrim,V.DataView.ErrorView!Process(V.Local.i).Suffix!FieldValTrim,V.DataView.ErrorView!Process(V.Local.i).Seq!FieldValTrim,V.Local.sText)
+		F.Intrinsic.String.Format(V.Ambient.Date,"MMDDYYYY",V.Local.sDate)
+		F.Intrinsic.String.Format(V.Ambient.Time,"HhNnSs",V.Local.sTime)
+		F.Intrinsic.String.Build("{0}{1}{2}.txt",V.Caller.User,V.Local.sDate,V.Local.sTime,V.Local.sFile)
+		F.Intrinsic.String.Build("{0}{1}",v.Global.sDir,v.Local.sFile,V.Local.sFile)
+		f.Intrinsic.File.String2File(V.Local.sFile,V.Local.sText)
+	F.Intrinsic.Control.Next(V.Local.i)
+	F.Intrinsic.Control.For(V.Local.i,V.DataView.ErrorView!Process.RowCount--,0,-1)
+		V.Local.iIndex.Set(V.DataView.ErrorView!Process(V.Local.i).DataTableIndex)
+		F.Data.DataTable.DeleteRow("ErrorView",V.Local.iIndex)
+	F.Intrinsic.Control.Next(V.Local.i)
+F.Intrinsic.Control.EndIf	
+
+F.Data.DataTable.RemoveColumn("ErrorView","Selection")
+
+F.Data.DataTable.SaveToDB("ErrorView","con","GCG_4434_Auto_GP_ERR","Rec_NO",4)
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SuspendLayout()
+F.Intrinsic.Control.CallSub(Get_Data)
+F.Intrinsic.Control.CallSub(Set_Properties)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.ResumeLayout()
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.cmdReProcess_Click.End
+
+Program.Sub.Get_Data.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+
+V.Local.sSql.Set("Select Cast(0 as Bit) as Selection, Rec_No, Job, Suffix, Seq, Errors From GCG_4434_Auto_GP_ERR Order By Rec_No")
+
+F.Intrinsic.Control.If(V.DataTable.ErrorView.Exists,=,True)
+	F.Data.DataTable.Close("ErrorView")
+F.Intrinsic.Control.EndIf
+
+F.Data.DataTable.CreateFromSQL("ErrorView","con",V.Local.sSql,True)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.Get_Data.End
+
+Program.Sub.Set_Properties.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.AddGridviewFromDatatable("ErrorView","ErrorView")
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetGridviewProperty("ErrorView","ReadOnly",True)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetGridviewProperty("ErrorView","Editable",False)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetGridviewProperty("ErrorView","OptionsViewColumnAutoWidth",True)
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetColumnProperty("ErrorView","Rec_NO","Visible",False)
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetColumnProperty("ErrorView","Job","Caption","Job")
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetColumnProperty("ErrorView","Suffix","Caption","Suffix")
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetColumnProperty("ErrorView","Seq","Caption","Seq")
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.MainView("ErrorView")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.Set_Properties.End
+
+Program.Sub.cmdDelete_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.i.Declare(Long)
+V.Local.iIndex.Declare(Long)
+
+F.Intrinsic.Control.If(V.DataView.ErrorView!Delete.Exists,=,True)
+	F.Data.DataView.Close("ErrorView","Delete")
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Create("ErrorView","Delete",22,"Selection = True","Rec_NO")
+
+F.Intrinsic.Control.For(V.Local.i,V.DataView.ErrorView!Delete.RowCount--,0,-1)
+	V.Local.iIndex.Set(V.DataView.ErrorView!Delete(V.Local.i).DataTableIndex)
+	F.Data.DataTable.DeleteRow("ErrorView",V.Local.iIndex)
+F.Intrinsic.Control.Next(V.Local.i)
+
+F.Data.DataTable.RemoveColumn("ErrorView","Selection")
+
+F.Data.DataTable.SaveToDB("ErrorView","con","GCG_4434_Auto_GP_ERR","Rec_NO",4)
+
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SuspendLayout()
+F.Intrinsic.Control.CallSub(Get_Data)
+F.Intrinsic.Control.CallSub(Set_Properties)
+Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.ResumeLayout()
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Program.Sub.cmdDelete_Click.End
+
+Program.Sub.GsGridControl_Errors_View_RowCellClick.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+
+F.Intrinsic.Control.If(V.Args.Column.UCase,=,"SELECTION")
+	Gui.Form_Auto_GP_VIEW.GsGridControl_Errors_View.SetCellValue("ErrorView",0,V.Args.RowIndex,V.DataTable.ErrorView(V.Args.RowIndex).Selection!FieldValNot)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Program.Sub.GsGridControl_Errors_View_RowCellClick.End
+
+Program.Sub.cmdClenupFiles_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+V.Local.sFiles.Declare(String)
+V.Local.i.Declare(Long)
+V.Local.bRet.Declare(Boolean,False)
+V.Local.sFileDelete.Declare(String)
+
+F.Intrinsic.File.GetFileList(V.Global.sProcessedDir,V.Local.sFiles)
+
+F.Intrinsic.Control.If(V.Local.sFiles.Length,>,0)
+	F.Intrinsic.String.Split(V.Local.sFiles,":",V.Local.sFiles)
+	F.Intrinsic.Control.For(V.Local.i,0,V.Local.sFiles.UBound,1)
+		F.Intrinsic.String.Build("{0}{1}",V.Global.sProcessedDir,V.Local.sFiles(V.Local.i),V.Local.sFileDelete)
+		F.Intrinsic.File.IsTargetDateTimeNewer(V.Local.sFileDelete,V.Screen.Form_Auto_GP_VIEW!dtpEndDate.Value,V.Local.bRet)
+		F.Intrinsic.Control.If(V.Local.bRet,=,False)
+			F.Intrinsic.File.DeleteFile(V.Local.sFileDelete)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_4434_Auto_GP_Errors_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_Auto_GP_VIEW_UnLoad)
+F.Intrinsic.Control.EndIf
+Program.Sub.cmdClenupFiles_Click.End
