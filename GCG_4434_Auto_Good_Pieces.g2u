@@ -1,0 +1,243 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String,"")
+
+	F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+	F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+		F.Intrinsic.Control.Case(38130)		
+			'check if program is already running
+			f.Intrinsic.Control.CallSub(isrunning)
+			'reading file
+			f.Intrinsic.UI.ChangeWaitStatus("Uploading Labor...")
+			F.Intrinsic.Control.Callsub("Read_Files")
+			f.Intrinsic.UI.CloseWaitDialog
+			
+	F.Intrinsic.Control.EndSelect
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String,"")
+	
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Exit.End
+
+Program.Sub.Read_Files.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String,"")
+	V.Local.sFileDir.Declare(String,"")
+	V.Local.sFileList.Declare(String,"")
+	V.Local.sStartTime.Declare(String,"")
+	V.Local.sFile.Declare(String,"")
+	V.Local.sSql.Declare(String,"")
+	V.Local.i.Declare(Long,0)
+	V.Local.sRet.Declare(String,"")
+	V.Local.fQty.Declare(Float,0)
+	V.Local.iRet.Declare(Long,0)
+	V.Local.sProcessFile.Declare(String,"")
+	V.Local.sErrorFile.Declare(String,"")
+	V.Local.bRet.Declare(Boolean)
+	V.Local.sTemp.Declare(String,"")
+	v.Local.bLocked.Declare(Boolean)
+	V.Local.sEnd.Declare(String,"")
+	V.Local.sStart.Declare(String,"")
+	V.Local.sWc.Declare(String,"")
+	v.Local.fEstimate.Declare(Float,0)
+	v.Local.fMinutes.Declare(Float,0)
+	V.Local.sUpdateDate.Declare(String,"")
+	V.Local.iRec_No.Declare(Long,0)
+	V.Local.dEnd.Declare(Date,V.Ambient.Date)
+	V.Local.sLine.Declare(String,"")
+	
+	V.Local.sRet.Redim(0,2)
+	
+	F.Intrinsic.String.Format(V.Ambient.Date,"MMDDYY",V.Local.sUpdateDate)
+	
+	'dir where files will be
+	F.Intrinsic.String.Build("{0}\DATALOGIC\",V.Caller.GlobalDir,V.Local.sFileDir)
+	F.Intrinsic.File.DirExists(V.Local.sFileDir,V.Local.bRet)
+	F.Intrinsic.Control.If(V.Local.bRet,=,False)
+		F.Intrinsic.File.CreateDir(V.Local.sFileDir)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0}\DATALOGIC\Processed\",V.Caller.GlobalDir,V.Local.sProcessFile)
+	F.Intrinsic.File.DirExists(V.Local.sProcessFile,V.Local.bRet)
+	F.Intrinsic.Control.If(V.Local.bRet,=,False)
+		F.Intrinsic.File.CreateDir(V.Local.sProcessFile)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0}\DATALOGIC\Error\",V.Caller.GlobalDir,V.Local.sErrorFile)
+	F.Intrinsic.File.DirExists(V.Local.sErrorFile,V.Local.bRet)
+	F.Intrinsic.Control.If(V.Local.bRet,=,False)
+		F.Intrinsic.File.CreateDir(V.Local.sErrorFile)
+	F.Intrinsic.Control.EndIf
+	
+	V.Local.sSql.Set("Select Rec_No, Job, Suffix, Seq, Errors From GCG_4434_Auto_GP_ERR Where Job = '-1'")
+	F.Data.DataTable.CreateFromSQL("JobERR","con",V.Local.sSql)
+	
+	F.ODBC.Connection!con.GetID("GCG_4434_Auto_GP_ERR","Rec_NO",False,V.Local.iRec_No)
+	
+	'only getting .txt files.
+	F.Intrinsic.String.Build("{0}*.txt",V.Local.sFileDir,V.Local.sTemp)
+	
+	'getting list of all files
+	F.Intrinsic.File.GetFileList(V.Local.sTemp,4,V.Local.sFileList)
+	
+	F.Intrinsic.Control.If(V.Local.sFileList.Length,>,0)
+		F.Intrinsic.String.Split(V.Local.sFileList,":",V.Local.sFileList)
+		F.Intrinsic.Control.For(V.Local.i,0,V.Local.sFileList.UBound,1)
+			F.Intrinsic.String.Build("{0}{1}",V.Local.sFileDir,V.Local.sFileList(V.Local.i),V.Local.sFile)
+			f.Intrinsic.File.IsFileLocked(v.Local.sFile,v.Local.bLocked)
+			f.Intrinsic.Control.If(v.Local.bLocked,<>,True)
+				'gettting data modified and time modified 
+
+				
+				F.Intrinsic.File.GetFileDateTimeExtended(V.Local.sFile,1,True,V.Local.sStartTime)
+				'reading file
+				F.Intrinsic.File.File2String(V.Local.sFile,V.Local.sRet(0))
+				'job suffix seq
+				F.Intrinsic.String.Mid(V.Local.sRet(0),12,6,V.Local.sRet(2))
+				F.Intrinsic.String.Mid(V.Local.sRet(0),9,3,V.Local.sRet(1))
+				F.Intrinsic.String.Mid(V.Local.sRet(0),3,6,V.Local.sRet(0))
+				'getting units_open, work center
+
+				F.Intrinsic.String.Build("Select Units_Open as Run_Qty, Operation as Work_Center, Units_Complete From V_Job_Operations Where Job = '{0}' and Suffix = '{1}' and Seq = '{2}'",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),V.Local.sSql)
+				F.Data.DataTable.CreateFromSQL("JobO","con",V.Local.sSql,True)
+				
+				F.Intrinsic.Control.If(V.DataTable.JobO.RowCount--,<>,-1)
+
+					F.Intrinsic.String.Build("Select Hours_Estimated From V_Job_Operations Where Job = '{0}' and Suffix = '{1}' and Seq = '{2}'",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),V.Local.sSql)
+					f.odbc.Connection!con.ExecuteAndReturn(v.local.sSql,v.Local.fEstimate)
+		
+					f.Intrinsic.String.Build("select top 1 SAR from APSV3_UBDETAIL where JSS = '{0}{1}{2}'",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),V.Local.sSql)
+					f.odbc.Connection!con.ExecuteAndReturn(v.local.sSql,v.Local.sWC)
+			
+					F.Intrinsic.String.Format(V.Local.sStartTime.Left22,"HhNn",V.Local.sStart)
+					f.Intrinsic.Math.Mult(v.Local.fEstimate,60,v.Local.fMinutes)
+					F.Intrinsic.Math.Div(V.Local.fMinutes,V.DataTable.JobO(0).Run_Qty!FieldValFloat,V.Local.fMinutes)
+					f.Intrinsic.Date.DateAdd("N",v.Local.fMinutes,V.Local.sStartTime.Left22,v.Local.dEnd)
+					F.Intrinsic.String.Format(v.Local.dEnd,"HhNn",V.Local.sEnd)
+			
+					'adding 1 to qty complete to see if labor line needs to be closed;
+					F.Intrinsic.Math.Add(V.DataTable.JobO(0).Units_Complete!FieldValFloat,1,V.Local.fQty)
+
+					F.Intrinsic.Control.If(V.DataTable.JobO(0).Run_Qty!FieldValTrim,>,V.Local.fQty)
+						'processing labor for each scan rather than once all have been scanned 2/26/2018 RLK
+						F.Intrinsic.Control.If(V.Local.sLine.Length,=,0)
+							F.Intrinsic.String.Build("{1}{0}{2}{0}{3}{0}{4}{0}{5}{0}{6}{0}{7}{0}{8}{0}{9}{0}{10}{0}{11}{0}{12}{0}{13}{0}{14}{0}{15}",V.Ambient.Tab,V.Local.sUpdateDate.Trim,"99999",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),v.Local.sWC.trim,"0","N","D",V.Local.sStart,V.Local.sEnd,"R",1.00,"0","",V.Local.sLine)
+						F.Intrinsic.Control.Else
+							F.Intrinsic.String.Build("{16}{17}{1}{0}{2}{0}{3}{0}{4}{0}{5}{0}{6}{0}{7}{0}{8}{0}{9}{0}{10}{0}{11}{0}{12}{0}{13}{0}{14}{0}{15}",V.Ambient.Tab,V.Local.sUpdateDate.Trim,"99999",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),v.Local.sWC.trim,"0","N","D",V.Local.sStart,V.Local.sEnd,"R",1.00,"0","",V.Local.sLine,V.Ambient.NewLine,V.Local.sLine)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.Else		
+						F.Intrinsic.Control.If(V.Local.sLine.Length,=,0)
+							F.Intrinsic.String.Build("{1}{0}{2}{0}{3}{0}{4}{0}{5}{0}{6}{0}{7}{0}{8}{0}{9}{0}{10}{0}{11}{0}{12}{0}{13}{0}{14}{0}{15}",V.Ambient.Tab,V.Local.sUpdateDate.Trim,"99999",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),v.Local.sWC.trim,"0","Y","D",V.Local.sStart,V.Local.sEnd,"R",1.00,"0","",V.Local.sLine)
+						F.Intrinsic.Control.Else
+							F.Intrinsic.String.Build("{16}{17}{1}{0}{2}{0}{3}{0}{4}{0}{5}{0}{6}{0}{7}{0}{8}{0}{9}{0}{10}{0}{11}{0}{12}{0}{13}{0}{14}{0}{15}",V.Ambient.Tab,V.Local.sUpdateDate.Trim,"99999",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet(2),v.Local.sWC.trim,"0","Y","D",V.Local.sStart,V.Local.sEnd,"R",1.00,"0","",V.Local.sLine,V.Ambient.NewLine,V.Local.sLine)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.EndIf
+					
+					F.Intrinsic.String.Build("{0}{1}",V.Local.sProcessFile,V.Local.sFileList(V.Local.i),V.Local.sTemp)
+					F.Intrinsic.File.MoveFile(V.Local.sFile,V.Local.sTemp,V.Local.iRet)
+				F.Intrinsic.Control.Else
+					'checking to see if file is blank if not it's not a valid job and saving it to the error view table
+					F.Intrinsic.Control.If(V.Local.sRet.Length,>,0)
+						F.Intrinsic.Math.Add(V.Local.iRec_No,1,V.Local.iRec_No)
+						F.Data.DataTable.AddRow("JobERR","Rec_No",V.Local.iRec_No,"Job",V.Local.sRet(0),"Suffix",V.Local.sRet(1),"Seq",V.Local.sRet(2),"Errors","Invalid Job")
+					F.Intrinsic.Control.Else
+						F.Intrinsic.String.Build("{0}{1}",V.Local.sErrorFile,V.Local.sFileList(V.Local.i),V.Local.sTemp)
+						F.Intrinsic.File.MoveFile(V.Local.sFile,V.Local.sTemp,V.Local.iRet)
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+				
+				F.Data.DataTable.Close("JobO")
+			f.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.i)
+	F.Intrinsic.Control.EndIf
+	
+	'Load labor details
+	F.Intrinsic.Control.If(V.Local.sLine.Trim,<>,"")
+		F.Intrinsic.String.Build("{0}\{1}{2}MOPEN.txt",V.Caller.FilesDir,V.Caller.CompanyCode,V.Caller.Terminal,V.Local.sFile)
+		F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sLine)
+		
+		F.Intrinsic.Task.LaunchGSSSync("JB0455","-c",V.Local.sFile)
+	F.Intrinsic.Control.EndIf
+	
+	'saving errors to table 
+	F.Intrinsic.Control.If(V.DataTable.JobERR.RowCount--,<>,-1)
+		F.Data.DataTable.SaveToDB("JobERR","con","GCG_4434_Auto_GP_ERR","Rec_No")
+	F.Intrinsic.Control.EndIf
+	
+	'closing table
+	F.Data.DataTable.Close("JobERR")
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Read_Files.End
+
+Program.Sub.IsRunning.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String,"")
+	v.Local.sFile.Declare(String,"")
+	v.Local.i.Declare(Long,0)
+	v.Local.bCheck.Declare(Boolean)
+	v.Local.sText.Declare(String,"")
+	
+	'we run the program async so it will not hold up online update - we check the PID and if it is stil running, we end the current program.
+	f.Intrinsic.String.Build("{0}\4434.pid",v.Caller.FilesDir,v.Local.sFile)
+	f.Intrinsic.File.Exists(v.Local.sFile,v.Local.bCheck)
+	f.Intrinsic.Control.If(v.Local.bCheck,=,True)
+		f.Intrinsic.File.File2String(v.local.sFile,v.Local.sText)
+		f.Intrinsic.Task.PIDRunning(v.Local.sText.Long,v.Local.bCheck)
+		f.Intrinsic.Control.If(v.Local.bCheck,=,True)
+			'end program
+			F.Intrinsic.Control.CallSub(exit)
+	
+		f.Intrinsic.Control.Else
+			'create file with current PID and continue running
+			f.Intrinsic.File.String2File(v.Local.sFile,v.Ambient.PID)	
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Else
+		'create file with current PID and continue running
+		f.Intrinsic.File.String2File(v.Local.sFile,v.Ambient.PID)
+	f.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.ExitSub
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.IsRunning.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
